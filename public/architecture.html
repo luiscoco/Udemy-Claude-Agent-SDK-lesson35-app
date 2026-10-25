@@ -1,0 +1,87 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent SDK LESSON 35 · Architecture and &lt;em&gt;UML workflow.&lt;/em&gt;</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/code-highlighting.css"></head><body><main><div class="brand"><a href="/">How <span>Claude Agent SDK</span> Works</a><span class="badge">LESSON 35 / STREAMING INPUT</span></div><header class="hero"><div><div class="eyebrow">SEND · YIELD · CONTINUE</div><h1>Architecture and <em>UML workflow.</em></h1><p class="lead">Every workflow step includes its corresponding coloured code excerpt.</p></div><img src="/astronaut.png" alt="Course astronaut mascot"></header><nav class="nav" aria-label="Application sections"><a href="/">Application lab</a><a href="/learn.html">What you will learn</a><a href="/run.html">How to run</a><a href="/architecture.html" aria-current="page">Architecture & workflow</a><a href="/walkthrough.html">Code walkthrough</a><button id="theme" type="button">Dark mode</button></nav><p class="note">This diagram groups the string and streaming alternatives. A host FIFO queue feeds the generator, while the SDK owns the actual agent session. The host waits for each result before yielding the next message.</p><a class="button" href="/architecture.svg" download>Download UML SVG</a><div class="diagram"><img src="/architecture.svg" alt="Thirteen source-linked input workflow steps"></div><section class="step workflow-step" id="workflow-step-01"><span class="number">01</span><h3>1. Validate the selected input experiment</h3><p>Accept a named classroom experiment. The browser cannot replace SDK options, tools or filesystem scope.</p><p class="source">Source: src/modes.ts · lines 14–20 · selected source; surrounding code omitted</p><pre><code class="language-typescript">export function validateConfig(value: unknown): RunConfig {
+  if (
+    !value ||
+    typeof value !== &quot;object&quot; ||
+    Array.isArray(value) ||
+    !MODES.includes((value as RunConfig).mode)
+  )</code></pre></section><section class="step workflow-step" id="workflow-step-02"><span class="number">02</span><h3>2. Bound and enqueue FIFO input</h3><p>A bounded inbox preserves queued messages and wakes a waiting consumer. Reject overflow and writes after closure.</p><p class="source">Source: src/queue.ts · lines 10–19 · selected source; surrounding code omitted</p><pre><code class="language-typescript">push(value: T) {
+    if (this.closed) throw new Error(&quot;This input queue is closed.&quot;);
+    if (this.wake) {
+      const resolve = this.wake;
+      this.wake = null;
+      resolve(value);
+      return;
+    }
+    if (this.items.length &gt;= this.limit)
+      throw new Error(&quot;The classroom queue is full.&quot;);</code></pre></section><section class="step workflow-step" id="workflow-step-03"><span class="number">03</span><h3>3. Wait for input without losing wakeups</h3><p>A message buffered before the await is still consumed. Closing the queue wakes an idle consumer with null.</p><p class="source">Source: src/queue.ts · lines 23–31 · selected source; surrounding code omitted</p><pre><code class="language-typescript">take(): Promise&lt;T | null&gt; {
+    if (this.items.length) return Promise.resolve(this.items.shift()!);
+    if (this.closed) return Promise.resolve(null);
+    if (this.wake) throw new Error(&quot;Only one queue consumer is allowed.&quot;);
+    return new Promise((resolve) =&gt; {
+      this.wake = resolve;
+    });
+  }
+  close() {</code></pre></section><section class="step workflow-step" id="workflow-step-04"><span class="number">04</span><h3>4. Call query with a string</h3><p>A string query is drained to completion inside try/catch. Breaking at the first result would miss an exception raised after an error result.</p><p class="source">Source: src/agent.ts · lines 391–398 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const q = query({
+      prompt,
+      options: { ...options(c.mode === &quot;resume&quot;), ...extra },
+    });
+    try {
+      for await (const message of q) consume(message, index, &quot;string&quot;, 1);
+    } catch (error) {
+      const text = redact(</code></pre></section><section class="step workflow-step" id="workflow-step-05"><span class="number">05</span><h3>5. Resume an explicit persisted session</h3><p>Compare another independent string query with explicit resume of the actual prior session ID. The disposable workspace persists until both queries finish.</p><p class="source">Source: src/agent.ts · lines 415–423 · selected source; surrounding code omitted</p><pre><code class="language-typescript">if (c.mode === &quot;isolated&quot; || c.mode === &quot;resume&quot;)
+        await single(
+          FOLLOWUP,
+          c.mode === &quot;resume&quot; ? { resume: results[0]?.sessionId } : {},
+        );
+    } else {
+      if (c.mode === &quot;caps&quot;) await single(READ, { maxTurns: 1 });
+      inbox.push({ text: PROMPTS[c.mode] });
+      async function* messages(): AsyncGenerator&lt;SDKUserMessage&gt; {</code></pre></section><section class="step workflow-step" id="workflow-step-06"><span class="number">06</span><h3>6. Yield actual SDKUserMessage objects</h3><p>An async generator yields the real message shape, including user role, content, null parent tool-use ID and the required session field.</p><p class="source">Source: src/agent.ts · lines 438–445 · selected source; surrounding code omitted</p><pre><code class="language-typescript">yield {
+            type: &quot;user&quot;,
+            message: {
+              role: &quot;user&quot;,
+              content: item.image ? await imageContent() : item.text,
+            },
+            parent_tool_use_id: null,
+            session_id: &quot;&quot;,</code></pre></section><section class="step workflow-step" id="workflow-step-07"><span class="number">07</span><h3>7. Gate the next yield on an actual result</h3><p>The classroom generator waits for result acknowledgement before taking the next message. This explicit host policy makes each queued follow-up produce a visible turn.</p><p class="source">Source: src/agent.ts · lines 448–455 · selected source; surrounding code omitted</p><pre><code class="language-typescript">if ((await gate.take()) === null) return;
+        }
+      }
+      const index = ++queryStarts;
+      observe(&quot;query-start&quot;, { queryIndex: index, inputKind: &quot;stream&quot; });
+      active = query({
+        prompt: messages(),
+        options: {</code></pre></section><section class="step workflow-step" id="workflow-step-08"><span class="number">08</span><h3>8. Send the actual PNG attachment</h3><p>The image follow-up contains text plus real base64 image bytes. The browser displays the same bundled PNG and the actual model reads its visual marker.</p><p class="source">Source: src/image.ts · lines 10–21 · selected source; surrounding code omitted</p><pre><code class="language-typescript">return [
+    {
+      type: &quot;text&quot;,
+      text: &quot;Return two labelled lines using only this image. Line 1 must be Marker: followed by the exact marker printed at the bottom. Line 2 must be Boxes: followed by all three box labels. Include both lines. Do not use tools.&quot;,
+    },
+    {
+      type: &quot;image&quot;,
+      source: { type: &quot;base64&quot;, media_type: &quot;image/png&quot;, data },
+    },
+  ];
+}</code></pre></section><section class="step workflow-step" id="workflow-step-09"><span class="number">09</span><h3>9. Route a bounded browser action</h3><p>The action POST carries a live run capability. Invalid actions and stale IDs cannot control another run.</p><p class="source">Source: src/controls.ts · lines 35–40 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const handler = active.get(v.id);
+  if (!handler) return false;
+  await handler(v);
+  return true;
+}</code></pre></section><section class="step workflow-step" id="workflow-step-10"><span class="number">10</span><h3>10. Interrupt the live Query</h3><p>Await the real interrupt acknowledgement during the delayed Read, then accept a recovery message on the same Query.</p><p class="source">Source: src/agent.ts · lines 139–143 · selected source; surrounding code omitted</p><pre><code class="language-typescript">interruptTask = active.interrupt();
+      const response = await interruptTask;
+      ack(&quot;interrupt&quot;, response ?? { acknowledged: true });
+      return;
+    }</code></pre></section><section class="step workflow-step" id="workflow-step-11"><span class="number">11</span><h3>11. Await a live permission-mode setter</h3><p>Wait for the actual setter acknowledgement before enqueuing the follow-up. Acknowledgement is reported separately from initialization metadata.</p><p class="source">Source: src/agent.ts · lines 152–156 · selected source; surrounding code omitted</p><pre><code class="language-typescript">await active.setPermissionMode(&quot;dontAsk&quot;);
+      ack(&quot;setPermissionMode&quot;, &quot;dontAsk&quot;);
+      inbox.push({ text: READ });
+      return;
+    }</code></pre></section><section class="step workflow-step" id="workflow-step-12"><span class="number">12</span><h3>12. Compare capped results and streaming recovery</h3><p>A capped streaming result leaves the Query alive for a tool-free recovery message. The string path has already recorded the capped result and following exception.</p><p class="source">Source: src/agent.ts · lines 465–472 · selected source; surrounding code omitted</p><pre><code class="language-typescript">if (c.mode === &quot;caps&quot; &amp;&amp; streamTurns === 1)
+            inbox.push({
+              text: &quot;Reply exactly RECOVERED-35. Do not use tools.&quot;,
+            });
+          if (c.mode === &quot;interrupt&quot; &amp;&amp; streamTurns === 1) {
+            await interruptTask;
+            inbox.push({
+              text: &quot;Reply exactly RECOVERED-35. Do not use tools.&quot;,</code></pre></section><section class="step workflow-step" id="workflow-step-13"><span class="number">13</span><h3>13. Close queues and clean the session</h3><p>Remove the run capability, abort remaining work, close the SDK Query and clean only the verified temporary workspace. Finish releases idle input waits.</p><p class="source">Source: src/agent.ts · lines 530–535 · selected source; surrounding code omitted</p><pre><code class="language-typescript">registration.close();
+    controller.abort();
+    active?.close();
+    await workspace.cleanup();
+  }
+}</code></pre></section><footer>CLAUDE AGENT SDK · LESSON 35 · QUEUES · CONTEXT · LIVE CONTROL<br>TypeScript · local runtime · API key stays on the server</footer></main><script src="/navigation.js"></script><script src="/prism.js"></script><script src="/prism-markup.min.js"></script><script src="/prism-yaml.min.js"></script><script src="/prism-markdown.min.js"></script><script src="/prism-python.min.js"></script><script src="/code-highlighting.js"></script><script src="/marked.umd.js"></script><script src="/purify.min.js"></script></body></html>

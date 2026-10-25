@@ -1,0 +1,273 @@
+{
+  "lanes": [
+    "Student UI",
+    "TypeScript host",
+    "Message generator",
+    "Agent SDK Query",
+    "Session + fixture"
+  ],
+  "arrows": [
+    [
+      0,
+      1,
+      "1. Validate the selected input experiment"
+    ],
+    [
+      0,
+      1,
+      "2. Bound and enqueue FIFO input"
+    ],
+    [
+      1,
+      2,
+      "3. Wait for input without losing wakeups"
+    ],
+    [
+      1,
+      3,
+      "4. Call query with a string"
+    ],
+    [
+      1,
+      3,
+      "5. Resume an explicit persisted session"
+    ],
+    [
+      2,
+      3,
+      "6. Yield actual SDKUserMessage objects"
+    ],
+    [
+      3,
+      2,
+      "7. Gate the next yield on an actual result"
+    ],
+    [
+      2,
+      3,
+      "8. Send the actual PNG attachment"
+    ],
+    [
+      0,
+      1,
+      "9. Route a bounded browser action"
+    ],
+    [
+      0,
+      3,
+      "10. Interrupt the live Query"
+    ],
+    [
+      1,
+      3,
+      "11. Await a live permission-mode setter"
+    ],
+    [
+      3,
+      2,
+      "12. Compare capped results and streaming recovery"
+    ],
+    [
+      1,
+      4,
+      "13. Close queues and clean the session"
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "title": "Validate the selected input experiment",
+      "source": "src/modes.ts",
+      "code": "export function validateConfig(value: unknown): RunConfig {\n  if (\n    !value ||\n    typeof value !== \"object\" ||\n    Array.isArray(value) ||\n    !MODES.includes((value as RunConfig).mode)\n  )",
+      "language": "typescript",
+      "explanation": "Accept a named classroom experiment. The browser cannot replace SDK options, tools or filesystem scope.",
+      "firstLine": 14,
+      "lastLine": 20,
+      "anchors": [
+        "export function validateConfig(value: unknown): RunConfig {"
+      ],
+      "sourceSHA256": "e3c54f4bf37fa5ad34601699f7034e7414c0536bcaf9e47229812fc77540702d",
+      "narration": "Step 1. Accept a named classroom experiment. The browser cannot replace SDK options, tools or filesystem scope. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 2,
+      "title": "Bound and enqueue FIFO input",
+      "source": "src/queue.ts",
+      "code": "push(value: T) {\n    if (this.closed) throw new Error(\"This input queue is closed.\");\n    if (this.wake) {\n      const resolve = this.wake;\n      this.wake = null;\n      resolve(value);\n      return;\n    }\n    if (this.items.length >= this.limit)\n      throw new Error(\"The classroom queue is full.\");",
+      "language": "typescript",
+      "explanation": "A bounded inbox preserves queued messages and wakes a waiting consumer. Reject overflow and writes after closure.",
+      "firstLine": 10,
+      "lastLine": 19,
+      "anchors": [
+        "push(value: T) {"
+      ],
+      "sourceSHA256": "d16d471439d3669a7ab77d61f31d0466d6f171ab2ccae3b9311e347685c4201d",
+      "narration": "Step 2. A bounded inbox preserves queued messages and wakes a waiting consumer. Reject overflow and writes after closure. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 3,
+      "title": "Wait for input without losing wakeups",
+      "source": "src/queue.ts",
+      "code": "take(): Promise<T | null> {\n    if (this.items.length) return Promise.resolve(this.items.shift()!);\n    if (this.closed) return Promise.resolve(null);\n    if (this.wake) throw new Error(\"Only one queue consumer is allowed.\");\n    return new Promise((resolve) => {\n      this.wake = resolve;\n    });\n  }\n  close() {",
+      "language": "typescript",
+      "explanation": "A message buffered before the await is still consumed. Closing the queue wakes an idle consumer with null.",
+      "firstLine": 23,
+      "lastLine": 31,
+      "anchors": [
+        "take(): Promise<T | null> {"
+      ],
+      "sourceSHA256": "d16d471439d3669a7ab77d61f31d0466d6f171ab2ccae3b9311e347685c4201d",
+      "narration": "Step 3. A message buffered before the await is still consumed. Closing the queue wakes an idle consumer with null. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 4,
+      "title": "Call query with a string",
+      "source": "src/agent.ts",
+      "code": "const q = query({\n      prompt,\n      options: { ...options(c.mode === \"resume\"), ...extra },\n    });\n    try {\n      for await (const message of q) consume(message, index, \"string\", 1);\n    } catch (error) {\n      const text = redact(",
+      "language": "typescript",
+      "explanation": "A string query is drained to completion inside try/catch. Breaking at the first result would miss an exception raised after an error result.",
+      "firstLine": 391,
+      "lastLine": 398,
+      "anchors": [
+        "const q = query({"
+      ],
+      "sourceSHA256": "74337002bf72a1933d9dd748f212d1f9b1290016ba5b9ef8384d0171b50d9462",
+      "narration": "Step 4. A string query is drained to completion inside try/catch. Breaking at the first result would miss an exception raised after an error result. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 5,
+      "title": "Resume an explicit persisted session",
+      "source": "src/agent.ts",
+      "code": "if (c.mode === \"isolated\" || c.mode === \"resume\")\n        await single(\n          FOLLOWUP,\n          c.mode === \"resume\" ? { resume: results[0]?.sessionId } : {},\n        );\n    } else {\n      if (c.mode === \"caps\") await single(READ, { maxTurns: 1 });\n      inbox.push({ text: PROMPTS[c.mode] });\n      async function* messages(): AsyncGenerator<SDKUserMessage> {",
+      "language": "typescript",
+      "explanation": "Compare another independent string query with explicit resume of the actual prior session ID. The disposable workspace persists until both queries finish.",
+      "firstLine": 415,
+      "lastLine": 423,
+      "anchors": [
+        "if (c.mode === \"isolated\" || c.mode === \"resume\")"
+      ],
+      "sourceSHA256": "74337002bf72a1933d9dd748f212d1f9b1290016ba5b9ef8384d0171b50d9462",
+      "narration": "Step 5. Compare another independent string query with explicit resume of the actual prior session ID. The disposable workspace persists until both queries finish. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 6,
+      "title": "Yield actual SDKUserMessage objects",
+      "source": "src/agent.ts",
+      "code": "yield {\n            type: \"user\",\n            message: {\n              role: \"user\",\n              content: item.image ? await imageContent() : item.text,\n            },\n            parent_tool_use_id: null,\n            session_id: \"\",",
+      "language": "typescript",
+      "explanation": "An async generator yields the real message shape, including user role, content, null parent tool-use ID and the required session field.",
+      "firstLine": 438,
+      "lastLine": 445,
+      "anchors": [
+        "yield {"
+      ],
+      "sourceSHA256": "74337002bf72a1933d9dd748f212d1f9b1290016ba5b9ef8384d0171b50d9462",
+      "narration": "Step 6. An async generator yields the real message shape, including user role, content, null parent tool-use ID and the required session field. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 7,
+      "title": "Gate the next yield on an actual result",
+      "source": "src/agent.ts",
+      "code": "if ((await gate.take()) === null) return;\n        }\n      }\n      const index = ++queryStarts;\n      observe(\"query-start\", { queryIndex: index, inputKind: \"stream\" });\n      active = query({\n        prompt: messages(),\n        options: {",
+      "language": "typescript",
+      "explanation": "The classroom generator waits for result acknowledgement before taking the next message. This explicit host policy makes each queued follow-up produce a visible turn.",
+      "firstLine": 448,
+      "lastLine": 455,
+      "anchors": [
+        "if ((await gate.take()) === null) return;"
+      ],
+      "sourceSHA256": "74337002bf72a1933d9dd748f212d1f9b1290016ba5b9ef8384d0171b50d9462",
+      "narration": "Step 7. The classroom generator waits for result acknowledgement before taking the next message. This explicit host policy makes each queued follow-up produce a visible turn. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 8,
+      "title": "Send the actual PNG attachment",
+      "source": "src/image.ts",
+      "code": "return [\n    {\n      type: \"text\",\n      text: \"Return two labelled lines using only this image. Line 1 must be Marker: followed by the exact marker printed at the bottom. Line 2 must be Boxes: followed by all three box labels. Include both lines. Do not use tools.\",\n    },\n    {\n      type: \"image\",\n      source: { type: \"base64\", media_type: \"image/png\", data },\n    },\n  ];\n}",
+      "language": "typescript",
+      "explanation": "The image follow-up contains text plus real base64 image bytes. The browser displays the same bundled PNG and the actual model reads its visual marker.",
+      "firstLine": 10,
+      "lastLine": 21,
+      "anchors": [
+        "return ["
+      ],
+      "sourceSHA256": "6bcc11ab75e7b37c415d6b781755d831a5ba31541d2e0c2dafa8e21eb260b6d0",
+      "narration": "Step 8. The image follow-up contains text plus real base64 image bytes. The browser displays the same bundled PNG and the actual model reads its visual marker. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 9,
+      "title": "Route a bounded browser action",
+      "source": "src/controls.ts",
+      "code": "const handler = active.get(v.id);\n  if (!handler) return false;\n  await handler(v);\n  return true;\n}",
+      "language": "typescript",
+      "explanation": "The action POST carries a live run capability. Invalid actions and stale IDs cannot control another run.",
+      "firstLine": 35,
+      "lastLine": 40,
+      "anchors": [
+        "const handler = active.get(v.id);"
+      ],
+      "sourceSHA256": "fe587a569f248148722bb039e7f928cf11255341a16f0e6b7b920462e19325ae",
+      "narration": "Step 9. The action POST carries a live run capability. Invalid actions and stale IDs cannot control another run. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 10,
+      "title": "Interrupt the live Query",
+      "source": "src/agent.ts",
+      "code": "interruptTask = active.interrupt();\n      const response = await interruptTask;\n      ack(\"interrupt\", response ?? { acknowledged: true });\n      return;\n    }",
+      "language": "typescript",
+      "explanation": "Await the real interrupt acknowledgement during the delayed Read, then accept a recovery message on the same Query.",
+      "firstLine": 139,
+      "lastLine": 143,
+      "anchors": [
+        "interruptTask = active.interrupt();"
+      ],
+      "sourceSHA256": "74337002bf72a1933d9dd748f212d1f9b1290016ba5b9ef8384d0171b50d9462",
+      "narration": "Step 10. Await the real interrupt acknowledgement during the delayed Read, then accept a recovery message on the same Query. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 11,
+      "title": "Await a live permission-mode setter",
+      "source": "src/agent.ts",
+      "code": "await active.setPermissionMode(\"dontAsk\");\n      ack(\"setPermissionMode\", \"dontAsk\");\n      inbox.push({ text: READ });\n      return;\n    }",
+      "language": "typescript",
+      "explanation": "Wait for the actual setter acknowledgement before enqueuing the follow-up. Acknowledgement is reported separately from initialization metadata.",
+      "firstLine": 152,
+      "lastLine": 156,
+      "anchors": [
+        "await active.setPermissionMode(\"dontAsk\");"
+      ],
+      "sourceSHA256": "74337002bf72a1933d9dd748f212d1f9b1290016ba5b9ef8384d0171b50d9462",
+      "narration": "Step 11. Wait for the actual setter acknowledgement before enqueuing the follow-up. Acknowledgement is reported separately from initialization metadata. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 12,
+      "title": "Compare capped results and streaming recovery",
+      "source": "src/agent.ts",
+      "code": "if (c.mode === \"caps\" && streamTurns === 1)\n            inbox.push({\n              text: \"Reply exactly RECOVERED-35. Do not use tools.\",\n            });\n          if (c.mode === \"interrupt\" && streamTurns === 1) {\n            await interruptTask;\n            inbox.push({\n              text: \"Reply exactly RECOVERED-35. Do not use tools.\",",
+      "language": "typescript",
+      "explanation": "A capped streaming result leaves the Query alive for a tool-free recovery message. The string path has already recorded the capped result and following exception.",
+      "firstLine": 465,
+      "lastLine": 472,
+      "anchors": [
+        "if (c.mode === \"caps\" && streamTurns === 1)"
+      ],
+      "sourceSHA256": "74337002bf72a1933d9dd748f212d1f9b1290016ba5b9ef8384d0171b50d9462",
+      "narration": "Step 12. A capped streaming result leaves the Query alive for a tool-free recovery message. The string path has already recorded the capped result and following exception. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 13,
+      "title": "Close queues and clean the session",
+      "source": "src/agent.ts",
+      "code": "registration.close();\n    controller.abort();\n    active?.close();\n    await workspace.cleanup();\n  }\n}",
+      "language": "typescript",
+      "explanation": "Remove the run capability, abort remaining work, close the SDK Query and clean only the verified temporary workspace. Finish releases idle input waits.",
+      "firstLine": 530,
+      "lastLine": 535,
+      "anchors": [
+        "registration.close();"
+      ],
+      "sourceSHA256": "74337002bf72a1933d9dd748f212d1f9b1290016ba5b9ef8384d0171b50d9462",
+      "narration": "Step 13. Remove the run capability, abort remaining work, close the SDK Query and clean only the verified temporary workspace. Finish releases idle input waits. This source excerpt shows the corresponding application statement."
+    }
+  ]
+}
