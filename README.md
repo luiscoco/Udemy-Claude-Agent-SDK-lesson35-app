@@ -203,20 +203,12 @@ if ((await gate.take()) === null) return;
 
 The image follow-up contains text plus real base64 image bytes. The browser displays the same bundled PNG and the actual model reads its visual marker.
 
-Source: `src/image.ts`, selected lines 10–21. Surrounding code omitted.
+Source: `src/image.ts`, selected lines 16–18. Surrounding code omitted.
 
 ```typescript
-return [
-    {
-      type: "text",
-      text: "Return two labelled lines using only this image. Line 1 must be Marker: followed by the exact marker printed at the bottom. Line 2 must be Boxes: followed by all three box labels. Include both lines. Do not use tools.",
-    },
-    {
-      type: "image",
+type: "image",
       source: { type: "base64", media_type: "image/png", data },
     },
-  ];
-}
 ```
 
 ### 9. Route a bounded browser action

@@ -50,17 +50,9 @@
       observe(&quot;query-start&quot;, { queryIndex: index, inputKind: &quot;stream&quot; });
       active = query({
         prompt: messages(),
-        options: {</code></pre></section><section class="step workflow-step" id="workflow-step-08"><span class="number">08</span><h3>8. Send the actual PNG attachment</h3><p>The image follow-up contains text plus real base64 image bytes. The browser displays the same bundled PNG and the actual model reads its visual marker.</p><p class="source">Source: src/image.ts · lines 10–21 · selected source; surrounding code omitted</p><pre><code class="language-typescript">return [
-    {
-      type: &quot;text&quot;,
-      text: &quot;Return two labelled lines using only this image. Line 1 must be Marker: followed by the exact marker printed at the bottom. Line 2 must be Boxes: followed by all three box labels. Include both lines. Do not use tools.&quot;,
-    },
-    {
-      type: &quot;image&quot;,
+        options: {</code></pre></section><section class="step workflow-step" id="workflow-step-08"><span class="number">08</span><h3>8. Send the actual PNG attachment</h3><p>The image follow-up contains text plus real base64 image bytes. The browser displays the same bundled PNG and the actual model reads its visual marker.</p><p class="source">Source: src/image.ts · lines 16–18 · selected source; surrounding code omitted</p><pre><code class="language-typescript">type: &quot;image&quot;,
       source: { type: &quot;base64&quot;, media_type: &quot;image/png&quot;, data },
-    },
-  ];
-}</code></pre></section><section class="step workflow-step" id="workflow-step-09"><span class="number">09</span><h3>9. Route a bounded browser action</h3><p>The action POST carries a live run capability. Invalid actions and stale IDs cannot control another run.</p><p class="source">Source: src/controls.ts · lines 35–40 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const handler = active.get(v.id);
+    },</code></pre></section><section class="step workflow-step" id="workflow-step-09"><span class="number">09</span><h3>9. Route a bounded browser action</h3><p>The action POST carries a live run capability. Invalid actions and stale IDs cannot control another run.</p><p class="source">Source: src/controls.ts · lines 35–40 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const handler = active.get(v.id);
   if (!handler) return false;
   await handler(v);
   return true;
